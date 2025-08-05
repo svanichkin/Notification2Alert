@@ -1,4 +1,4 @@
-module code2alert
+module notification2alert
 
 go 1.24.4
 
