@@ -7,11 +7,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
+	gosxnotifier "github.com/deckarep/gosx-notifier"
 	"github.com/fsnotify/fsnotify"
-	"github.com/getlantern/systray"
+	"github.com/gen2brain/beeep"
 )
 
 type Config struct {
@@ -19,8 +21,6 @@ type Config struct {
 }
 
 var watchDir string
-
-const empty = "[ ]"
 
 var lastFile string
 
@@ -32,6 +32,8 @@ func main() {
 		return
 	}
 	watchDir = cfg.Folder
+	// showSystemNotification("Тест", "Это тестовое уведомление", "/Users/alien/Vault/Messages/Emails/invitations@linkedin.com/2025-08-05 19꞉21 I want to connect.eml")
+	// showSystemNotificationTerminalNotifier("Тест Terminal Notifier", "Это уведомление через terminal-notifier", "/Users/alien/Vault/Messages/Emails/invitations@linkedin.com/2025-08-05 19꞉21 I want to connect.eml")
 	exePath, err := os.Executable()
 	if err != nil {
 		log.Fatalln("Ошибка получения пути к бинарнику:", err)
@@ -48,13 +50,8 @@ func main() {
 			}
 		}
 	}()
-	systray.Run(onReady, func() {})
+	watch()
 
-}
-
-func onReady() {
-	systray.SetTitle(empty)
-	go watch()
 }
 
 func watch() {
@@ -98,20 +95,15 @@ func processFile(file string) {
 	}
 	lastFile = file
 	xtype := getXAttr(file, "type")
-	if xtype != "code" {
+	if xtype != "notification" {
 		return
 	}
+	from := getXAttr(file, "from")
 	summary := getXAttr(file, "summary")
-	if summary == "" {
+	if summary == "" || from == "" {
 		return
 	}
-	systray.SetTitle("[ " + summary + " ]")
-	copyToClipboard(summary)
-	go func() {
-		time.Sleep(10 * time.Second)
-		systray.SetTitle(empty)
-	}()
-
+	showSystemNotificationTerminalNotifier(from, summary, file)
 }
 
 func getXAttr(file, attr string) string {
@@ -122,17 +114,6 @@ func getXAttr(file, attr string) string {
 	}
 
 	return strings.TrimSpace(string(out))
-}
-
-func copyToClipboard(text string) {
-
-	cmd := exec.Command("pbcopy")
-	in, _ := cmd.StdinPipe()
-	_ = cmd.Start()
-	_, _ = in.Write([]byte(text))
-	_ = in.Close()
-	_ = cmd.Wait()
-
 }
 
 func getModTime(path string) time.Time {
@@ -173,4 +154,48 @@ func loadConfig() (Config, error) {
 	err = json.Unmarshal(data, &cfg)
 
 	return cfg, err
+}
+
+func showSystemNotification(from, summary, file string) {
+	if isDarwin() {
+		note := gosxnotifier.NewNotification(summary)
+		note.Title = from
+		note.Sound = gosxnotifier.Default
+		note.Sender = "com.apple.stickies"
+		note.Link = "file://" + file
+		err := note.Push()
+		if err != nil {
+			fmt.Println("Ошибка gosx-notifier:", err)
+		}
+	} else {
+		err := beeep.Notify(from, summary, "")
+		if err != nil {
+			fmt.Println("Ошибка beeep.Notify:", err)
+		}
+	}
+}
+
+func isDarwin() bool {
+	return strings.Contains(strings.ToLower(runtime.GOOS), "darwin")
+}
+
+func showSystemNotificationTerminalNotifier(from, summary, file string) {
+	// Формируем абсолютный путь для file, если он не абсолютный
+	absFile := file
+	if !strings.HasPrefix(file, "/") {
+		exePath, err := os.Executable()
+		if err == nil {
+			exeDir := filepath.Dir(exePath)
+			absFile = filepath.Join(exeDir, file)
+		}
+	}
+	err := exec.Command(
+		"terminal-notifier",
+		"-title", from,
+		"-message", summary,
+		"-open", "file://"+absFile,
+	).Run()
+	if err != nil {
+		fmt.Println("Ошибка terminal-notifier:", err)
+	}
 }

@@ -1,46 +1,54 @@
-# Code2Alert
+# Notification2Alert
 
-**Code2Alert** is a minimalist utility that monitors a specified folder and displays metadata (`xattr`) from new files from [email2folder](https://github.com/svanichkin/Email2Folder) in the macOS/Linux/Windows menu bar.
-
-If a file has the `xattr` attribute `type=code`, its `summary` attribute is displayed in the menu bar and copied to the clipboard.
+**Notification2Alert** is a minimalist cross-platform utility that monitors a specified folder and instantly displays a system notification for every new file with a special xattr attribute.
 
 ## 🛠 Features
 
-- Monitoring files and subfolders in the specified directory
-- Displaying short text in the macOS menu bar (via [systray](https://github.com/getlantern/systray))
-- Automatically copying the `summary` content to the clipboard
-- Auto-restart when the binary is updated
+- Watches a directory and all subfolders for new files
+- Checks xattr attribute: `type=notification`
+- Reads additional attributes: `from`, `summary`
+- Displays a native system notification:
+    - Title: `from`
+    - Message: `summary`
+    - Clicking the notification opens the related file (supported on macOS and most desktop Linux)
+- Cross-platform: macOS, Linux, Windows
+    - macOS: custom icon support (with proper bundle or sender spoofing)
+    - macOS: reliable notification click-to-open via terminal-notifier or gosx-notifier
+- Sends a test notification on launch for verification
 
 ## 🔧 Installation
 
-### Dependencies
+1. Build the binary:
+    ```bash
+    go build
+    ```
 
-Build the binary:
+2. Create a `config.json` file next to the binary:
+    ```json
+    {
+      "folder": "/path/to/watched/folder"
+    }
+    ```
 
-```bash
-go build
-```
+## 🚀 How It Works
 
-## ⚙️ Configuration
+1. Loads config and watches the given folder (and subfolders).
+2. For every new file with `type=notification`:
+    - Reads the `from` and `summary` attributes
+    - Shows a system notification with those fields
+    - Clicking the notification opens the file (when supported)
+3. Works on all major desktop OS (using beeep, gosx-notifier, and/or terminal-notifier)
+4. Displays a test notification on startup
 
-Create `config.json` next to the binary:
+## ⚠️ Notes
 
-```json
-{
-  "folder": "/folder/from/email2folder/emails/"
-}
-```
+- On macOS, for full icon/click support, install [terminal-notifier](https://github.com/julienXX/terminal-notifier):
+    ```bash
+    brew install terminal-notifier
+    ```
+- Some notification features (icons, click handlers) depend on OS and configuration.
+- To spoof sender and change icon on macOS, you may set the `Sender` field to a system app's bundle ID (e.g., Safari).
 
-## 📋 How It Works
+## License
 
-1. The program loads the config and begins monitoring the folder and all subfolders.
-2. When a new file appears:
-   - - Verifies it's a regular file
-   - - Reads `xattr` attributes: `type` and `summary`
-   - - If `type=code`, shows `summary` in the menu bar and copies it to clipboard
-3. - The menu bar title clears after 10 seconds.
-4. - If the binary is updated — the app restarts.
-
----
-
-License: MIT
+MIT
