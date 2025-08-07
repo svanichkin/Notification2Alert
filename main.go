@@ -3,11 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"net/url"
 	"strings"
 	"time"
 
@@ -77,9 +79,8 @@ func watch() {
 			if event.Op&fsnotify.Create != 0 {
 				info, err := os.Stat(event.Name)
 				if err == nil && info.IsDir() {
-					err := watcher.Add(event.Name)
-					if err != nil {
-						fmt.Println("Ошибка добавления директории в watcher:", err)
+					if err := addDirRecursive(watcher, event.Name); err != nil {
+						fmt.Println("Ошибка рекурсивного добавления директории:", err)
 					}
 				} else {
 					processFile(event.Name)
@@ -90,6 +91,20 @@ func watch() {
 		}
 	}
 
+}
+
+func addDirRecursive(w *fsnotify.Watcher, root string) error {
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if err := w.Add(path); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func processFile(file string) {
@@ -197,11 +212,12 @@ func showSystemNotificationTerminalNotifier(from, summary, file string) {
 			absFile = filepath.Join(exeDir, file)
 		}
 	}
+	fileURL := url.URL{Scheme: "file", Path: absFile}
 	err := exec.Command(
 		"terminal-notifier",
 		"-title", from,
 		"-message", summary,
-		"-open", "file://"+absFile,
+		"-open", fileURL.String(),
 	).Run()
 	if err != nil {
 		fmt.Println("Ошибка terminal-notifier:", err)
