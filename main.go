@@ -5,24 +5,24 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
-	"net/url"
 	"strings"
 	"time"
 
-	gosxnotifier "github.com/deckarep/gosx-notifier"
 	"github.com/fsnotify/fsnotify"
-	"github.com/gen2brain/beeep"
 )
 
 type Config struct {
-	Folder string `json:"folder"`
+	Folder   string `json:"folder"`
+	Contacts string `json:"contacts"`
 }
 
 var watchDir string
+
+var contactsDir string
 
 var lastFile string
 
@@ -34,8 +34,7 @@ func main() {
 		return
 	}
 	watchDir = cfg.Folder
-	// showSystemNotification("Тест", "Это тестовое уведомление", "/Users/alien/Vault/Messages/Emails/invitations@linkedin.com/2025-08-05 19꞉21 I want to connect.eml")
-	// showSystemNotificationTerminalNotifier("Тест Terminal Notifier", "Это уведомление через terminal-notifier", "/Users/alien/Vault/Messages/Emails/invitations@linkedin.com/2025-08-05 19꞉21 I want to connect.eml")
+	contactsDir = cfg.Contacts
 	exePath, err := os.Executable()
 	if err != nil {
 		log.Fatalln("Ошибка получения пути к бинарнику:", err)
@@ -179,29 +178,6 @@ func loadConfig() (Config, error) {
 	return cfg, err
 }
 
-func showSystemNotification(from, summary, file string) {
-	if isDarwin() {
-		note := gosxnotifier.NewNotification(summary)
-		note.Title = from
-		note.Sound = gosxnotifier.Default
-		note.Sender = "com.apple.stickies"
-		note.Link = "file://" + file
-		err := note.Push()
-		if err != nil {
-			fmt.Println("Ошибка gosx-notifier:", err)
-		}
-	} else {
-		err := beeep.Notify(from, summary, "")
-		if err != nil {
-			fmt.Println("Ошибка beeep.Notify:", err)
-		}
-	}
-}
-
-func isDarwin() bool {
-	return strings.Contains(strings.ToLower(runtime.GOOS), "darwin")
-}
-
 func showSystemNotificationTerminalNotifier(from, summary, file string) {
 	// Формируем абсолютный путь для file, если он не абсолютный
 	absFile := file
@@ -213,12 +189,20 @@ func showSystemNotificationTerminalNotifier(from, summary, file string) {
 		}
 	}
 	fileURL := url.URL{Scheme: "file", Path: absFile}
-	err := exec.Command(
-		"terminal-notifier",
+	args := []string{
 		"-title", from,
 		"-message", summary,
 		"-open", fileURL.String(),
-	).Run()
+	}
+	if c := findContact(contactsDir, from); c != nil && c.Name != "" {
+		args[1] = c.Name
+		args = append(args, "-subtitle", from)
+		if photo := c.photoFile(); photo != "" {
+			photoURL := url.URL{Scheme: "file", Path: photo}
+			args = append(args, "-contentImage", photoURL.String())
+		}
+	}
+	err := exec.Command("terminal-notifier", args...).Run()
 	if err != nil {
 		fmt.Println("Ошибка terminal-notifier:", err)
 	}
