@@ -24,6 +24,9 @@
     go build
     ```
 
+   Keep `AppIcon.icns` next to the built binary. On macOS it is used as the
+   notification application icon.
+
 2. Create a `config.json` file next to the binary:
     ```json
     {
